@@ -44,7 +44,7 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/CloudWatchFullAccess
-        - arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess  # Allow access to read SSM parameters
+        - arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess  # Grants access to read from SSM Parameter Store
       Tags:
         - Key: Name
           Value: !Ref AWS::StackName
