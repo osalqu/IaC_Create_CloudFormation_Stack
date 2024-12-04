@@ -76,64 +76,64 @@ Resources:
       SecurityGroupIds:
         - !GetAtt SecurityGroup.GroupId
 
-    UserData:
-      Fn::Base64: !Sub |
-        #!/bin/bash -xe
-
-        # Redirect output to log
-        exec > /tmp/userdata.log 2>&1
-
-        echo 'Updating all packages...'
-        yum -y update
-
-        echo 'Installing CloudFormation helper scripts...'
-        yum install -y aws-cfn-bootstrap
-
-        echo 'Initializing CloudFormation resources...'
-        /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --region ${AWS::Region} --resource Instance
-
-        echo 'Creating install script...'
-        cat > /tmp/install_script.sh << EOF
+      UserData:
+        Fn::Base64: !Sub |
           #!/bin/bash -xe
-          echo "Setting up NodeJS Environment..." >> /tmp/userdata.log
 
-          # Install NVM, Node.js, and NPM
-          curl https://raw.githubusercontent.com/nvm-sh/nvm/v0.34.0/install.sh | bash >> /tmp/userdata.log 2>&1
-          . /home/ec2-user/.nvm/nvm.sh
-          . /home/ec2-user/.bashrc
+          # Redirect output to log
+          exec > /tmp/userdata.log 2>&1
 
-          nvm install v12.7.0 >> /tmp/userdata.log 2>&1
-          nvm alias default v12.7.0 >> /tmp/userdata.log 2>&1
-          nvm use v12.7.0 >> /tmp/userdata.log 2>&1
+          echo 'Updating all packages...'
+          yum -y update
 
-          echo "Downloading application..." >> /tmp/userdata.log
-          wget https://github.com/ozcli/aws-bootstrap/archive/master.zip -O /home/ec2-user/master.zip >> /tmp/userdata.log 2>&1
+          echo 'Installing CloudFormation helper scripts...'
+          yum install -y aws-cfn-bootstrap
 
-          echo "Unzipping application..." >> /tmp/userdata.log
-          unzip /home/ec2-user/master.zip -d /home/ec2-user/ >> /tmp/userdata.log 2>&1
+          echo 'Initializing CloudFormation resources...'
+          /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --region ${AWS::Region} --resource Instance
 
-          if [ -d "/home/ec2-user/aws-bootstrap-master" ]; then
-            echo "Moving extracted application..." >> /tmp/userdata.log
-            mv /home/ec2-user/aws-bootstrap-master /home/ec2-user/app >> /tmp/userdata.log 2>&1
-          else
-            echo "Error: Extracted directory not found!" >> /tmp/userdata.log
-            exit 1
-          fi
+          echo 'Creating install script...'
+          cat > /tmp/install_script.sh << EOF
+            #!/bin/bash -xe
+            echo "Setting up NodeJS Environment..." >> /tmp/userdata.log
 
-          echo "Creating log directory..." >> /tmp/userdata.log
-          mkdir -p /home/ec2-user/app/logs
+            # Install NVM, Node.js, and NPM
+            curl https://raw.githubusercontent.com/nvm-sh/nvm/v0.34.0/install.sh | bash >> /tmp/userdata.log 2>&1
+            . /home/ec2-user/.nvm/nvm.sh
+            . /home/ec2-user/.bashrc
 
-          echo "Installing dependencies and starting application..." >> /tmp/userdata.log
-          cd /home/ec2-user/app
-          npm install >> /tmp/userdata.log 2>&1
-          npm start >> /tmp/userdata.log 2>&1
-        EOF
+            nvm install v12.7.0 >> /tmp/userdata.log 2>&1
+            nvm alias default v12.7.0 >> /tmp/userdata.log 2>&1
+            nvm use v12.7.0 >> /tmp/userdata.log 2>&1
 
-        chown ec2-user:ec2-user /tmp/install_script.sh && chmod a+x /tmp/install_script.sh
-        sleep 1; su - ec2-user -c "/tmp/install_script.sh"
+            echo "Downloading application..." >> /tmp/userdata.log
+            wget https://github.com/ozcli/aws-bootstrap/archive/master.zip -O /home/ec2-user/master.zip >> /tmp/userdata.log 2>&1
 
-        # Signal to CloudFormation that the instance is ready
-        /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --region ${AWS::Region} --resource Instance
+            echo "Unzipping application..." >> /tmp/userdata.log
+            unzip /home/ec2-user/master.zip -d /home/ec2-user/ >> /tmp/userdata.log 2>&1
+
+            if [ -d "/home/ec2-user/aws-bootstrap-master" ]; then
+              echo "Moving extracted application..." >> /tmp/userdata.log
+              mv /home/ec2-user/aws-bootstrap-master /home/ec2-user/app >> /tmp/userdata.log 2>&1
+            else
+              echo "Error: Extracted directory not found!" >> /tmp/userdata.log
+              exit 1
+            fi
+
+            echo "Creating log directory..." >> /tmp/userdata.log
+            mkdir -p /home/ec2-user/app/logs
+
+            echo "Installing dependencies and starting application..." >> /tmp/userdata.log
+            cd /home/ec2-user/app
+            npm install >> /tmp/userdata.log 2>&1
+            npm start >> /tmp/userdata.log 2>&1
+          EOF
+
+          chown ec2-user:ec2-user /tmp/install_script.sh && chmod a+x /tmp/install_script.sh
+          sleep 1; su - ec2-user -c "/tmp/install_script.sh"
+
+          # Signal to CloudFormation that the instance is ready
+          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --region ${AWS::Region} --resource Instance
 
 Outputs:
   InstanceEndpoint:
