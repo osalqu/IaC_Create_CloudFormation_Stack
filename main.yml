@@ -121,6 +121,7 @@ Resources:
           nvm use v12.7.0
 
           echo "Cloning application repository"
+          GITHUB_TOKEN=$(aws ssm get-parameter --name "/github/token" --with-decryption --region ${AWS::Region} --query "Parameter.Value" --output text)
           git clone https://${GITHUB_TOKEN}@github.com/osalqu/IaC_Create_CloudFormation_Stack.git /home/ec2-user/app
 
           echo "Creating log directory"
