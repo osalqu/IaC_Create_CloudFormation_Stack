@@ -7,9 +7,6 @@ Parameters:
   EC2AMI:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
     Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
-  GitHubToken:
-    Type: String
-    Description: "GitHub Access Token for cloning the repository"
 
 Resources:
 
@@ -47,7 +44,7 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/CloudWatchFullAccess
-        - arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess  # Add this to grant access to SSM Parameter Store
+        - arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess  # Allow access to read SSM parameters
       Tags:
         - Key: Name
           Value: !Ref AWS::StackName
@@ -125,7 +122,7 @@ Resources:
           nvm use v12.7.0
 
           echo "Cloning application repository"
-          git clone https://${GitHubToken}@github.com/osalqu/IaC_Create_CloudFormation_Stack.git /home/ec2-user/app
+          git clone https://${GITHUB_TOKEN}@github.com/osalqu/IaC_Create_CloudFormation_Stack.git /home/ec2-user/app
 
           echo "Creating log directory"
           mkdir -p /home/ec2-user/app/logs
