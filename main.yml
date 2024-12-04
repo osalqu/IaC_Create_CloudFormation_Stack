@@ -1,150 +1,65 @@
-AWSTemplateFormatVersion: 2010-09-09
+UserData:
+  Fn::Base64: !Sub |
+    #!/bin/bash -xe
 
-Parameters:
-  EC2InstanceType:
-    Type: String
-    Default: t2.micro
-  EC2AMI:
-    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+    # Log everything to /home/ec2-user/userdata.log
+    exec > /home/ec2-user/userdata.log 2>&1
 
-Resources:
+    echo "Updating all packages..."
+    yum -y update
 
-  SecurityGroup:
-    Type: "AWS::EC2::SecurityGroup"
-    Properties:
-      GroupDescription: !Sub 'Internal Security group for ${AWS::StackName}'
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 8080
-          ToPort: 8080
-          CidrIp: 0.0.0.0/0
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp: 0.0.0.0/0
-        - IpProtocol: tcp
-          FromPort: 22
-          ToPort: 22
-          CidrIp: 0.0.0.0/0
-      Tags:
-        - Key: Name
-          Value: !Ref AWS::StackName
+    echo "Installing CloudFormation helper scripts..."
+    yum install -y aws-cfn-bootstrap
 
-  InstanceRole:
-    Type: "AWS::IAM::Role"
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - "ec2.amazonaws.com"
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/CloudWatchFullAccess
-        - arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess
-      Tags:
-        - Key: Name
-          Value: !Ref AWS::StackName
+    echo "Installing AWS CLI..."
+    yum install -y aws-cli
 
-  InstanceProfile:
-    Type: "AWS::IAM::InstanceProfile"
-    Properties:
-      Roles:
-        - Ref: InstanceRole
+    # Retrieve GitHub token from SSM Parameter Store
+    GITHUB_TOKEN=$(aws ssm get-parameter --name "/github/token" --with-decryption --region ${AWS::Region} --query "Parameter.Value" --output text)
 
-  Instance:
-    Type: AWS::EC2::Instance
-    CreationPolicy:
-      ResourceSignal:
-        Timeout: PT20M
-        Count: 1
-    Metadata:
-      AWS::CloudFormation::Init:
-        config:
-          packages:
-            yum:
-              wget: []
-              unzip: []
-              awslogs: []
-    Properties:
-      ImageId: !Ref EC2AMI
-      InstanceType: !Ref EC2InstanceType
-      IamInstanceProfile: !Ref InstanceProfile
-      Monitoring: true
-      SecurityGroupIds:
-        - !GetAtt SecurityGroup.GroupId
-      UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash -xe
+    echo "Initializing CloudFormation resources..."
+    /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --region ${AWS::Region} --resource Instance
 
-          # Log everything to /home/ec2-user/userdata.log
-          exec > /home/ec2-user/userdata.log 2>&1
+    echo "Creating install script..."
+    cat > /tmp/install_script.sh << 'EOF'
+    #!/bin/bash -xe
 
-          echo "Updating all packages..."
-          yum -y update
+    # Send output to a separate log file for debugging
+    exec > /home/ec2-user/install_script.log 2>&1
 
-          echo "Installing CloudFormation helper scripts..."
-          yum install -y aws-cfn-bootstrap
+    echo "Setting up NodeJS Environment"
 
-          echo "Installing AWS CLI..."
-          yum install -y aws-cli
+    # Install NVM
+    curl https://raw.githubusercontent.com/nvm-sh/nvm/v0.34.0/install.sh | bash
 
-          # Retrieve GitHub token from SSM Parameter Store
-          GITHUB_TOKEN=$(aws ssm get-parameter --name "/github/token" --with-decryption --region ${AWS::Region} --query "Parameter.Value" --output text)
+    # Load NVM environment
+    export NVM_DIR="/home/ec2-user/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
 
-          echo "Initializing CloudFormation resources..."
-          /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --region ${AWS::Region} --resource Instance
+    echo "Installing Node.js"
+    nvm install v12.7.0
+    nvm alias default v12.7.0
+    nvm use v12.7.0
 
-          echo "Creating install script..."
-          cat > /tmp/install_script.sh << 'EOF'
-          #!/bin/bash -xe
+    echo "Cloning application repository"
+    git clone https://${GITHUB_TOKEN}@github.com/osalqu/IaC_Create_CloudFormation_Stack.git /home/ec2-user/app
 
-          # Send output to a separate log file for debugging
-          exec > /home/ec2-user/install_script.log 2>&1
+    echo "Creating log directory"
+    mkdir -p /home/ec2-user/app/logs
 
-          echo "Setting up NodeJS Environment"
+    echo "Installing dependencies and starting application"
+    cd /home/ec2-user/app
+    npm install
+    npm start
+    EOF
 
-          # Install NVM
-          curl https://raw.githubusercontent.com/nvm-sh/nvm/v0.34.0/install.sh | bash
+    # Ensure install script is owned by ec2-user and executable
+    chown ec2-user:ec2-user /tmp/install_script.sh
+    chmod a+x /tmp/install_script.sh
 
-          # Load NVM environment
-          export NVM_DIR="/home/ec2-user/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-          [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+    # Run install script as ec2-user
+    su - ec2-user -c "/tmp/install_script.sh"
 
-          echo "Installing Node.js"
-          nvm install v12.7.0
-          nvm alias default v12.7.0
-          nvm use v12.7.0
-
-          echo "Cloning application repository"
-          git clone https://${GITHUB_TOKEN}@github.com/osalqu/IaC_Create_CloudFormation_Stack.git /home/ec2-user/app
-
-          echo "Creating log directory"
-          mkdir -p /home/ec2-user/app/logs
-
-          echo "Installing dependencies and starting application"
-          cd /home/ec2-user/app
-          npm install
-          npm start
-          EOF
-
-          # Ensure install script is owned by ec2-user and executable
-          chown ec2-user:ec2-user /tmp/install_script.sh
-          chmod a+x /tmp/install_script.sh
-
-          # Run install script as ec2-user
-          su - ec2-user -c "/tmp/install_script.sh"
-
-          # Signal to CloudFormation that the instance is ready
-          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --region ${AWS::Region} --resource Instance
-
-Outputs:
-  InstanceEndpoint:
-    Description: The DNS name for the created instance
-    Value: !Sub "http://${Instance.PublicDnsName}:8080"
-    Export:
-      Name: InstanceEndpoint
+    # Signal to CloudFormation that the instance is ready
+    /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --region ${AWS::Region} --resource Instance
