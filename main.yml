@@ -44,6 +44,15 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/CloudWatchFullAccess
+      Policies:
+        - PolicyName: AllowParameterStoreAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource: "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/github/token"
       Tags:
         - Key: Name
           Value: !Ref AWS::StackName
@@ -80,8 +89,8 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash -xe
 
-          # Log everything to /tmp/userdata.log
-          exec > /tmp/userdata.log 2>&1
+          # Log everything to /home/ec2-user/userdata.log
+          exec > /home/ec2-user/userdata.log 2>&1
 
           echo "Updating all packages..."
           yum -y update
@@ -93,11 +102,11 @@ Resources:
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --region ${AWS::Region} --resource Instance
 
           echo "Creating install script..."
-          cat > /tmp/install_script.sh << EOF
+          cat > /tmp/install_script.sh << 'EOF'
           #!/bin/bash -xe
 
           # Send output to a separate log file for debugging
-          exec > /home/ec2-user/userdata.log 2>&1
+          exec > /home/ec2-user/install_script.log 2>&1
 
           echo "Setting up NodeJS Environment"
 
@@ -106,25 +115,19 @@ Resources:
 
           # Load NVM environment
           export NVM_DIR="/home/ec2-user/.nvm"
-          [ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
-          [ -s "\$NVM_DIR/bash_completion" ] && \. "\$NVM_DIR/bash_completion"
+          [ -s "$NVM_DIR/nvm.sh" ] && \ . "$NVM_DIR/nvm.sh"
+          [ -s "$NVM_DIR/bash_completion" ] && \ . "$NVM_DIR/bash_completion"
 
           echo "Installing Node.js"
           nvm install v12.7.0
           nvm alias default v12.7.0
           nvm use v12.7.0
 
-          echo "Downloading application"
-          wget https://github.com/ozcli/aws-bootstrap/archive/master.zip -O /home/ec2-user/master.zip
-          unzip /home/ec2-user/master.zip -d /home/ec2-user/
+          # Retrieve GitHub token from Parameter Store
+          GITHUB_TOKEN=$(aws ssm get-parameter --name "/github/token" --with-decryption --query Parameter.Value --output text --region ${AWS::Region})
 
-          if [ -d "/home/ec2-user/aws-bootstrap-master" ]; then
-            echo "Moving application"
-            mv /home/ec2-user/aws-bootstrap-master /home/ec2-user/app
-          else
-            echo "Error: Extracted directory not found!"
-            exit 1
-          fi
+          echo "Cloning application repository"
+          git clone https://${GITHUB_TOKEN}@github.com/osalqu/aws-bootstrap.git /home/ec2-user/app
 
           echo "Creating log directory"
           mkdir -p /home/ec2-user/app/logs
