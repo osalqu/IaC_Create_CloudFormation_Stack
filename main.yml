@@ -76,142 +76,74 @@ Resources:
       SecurityGroupIds:
         - !GetAtt SecurityGroup.GroupId
 
-    UserData:
-      Fn::Base64: !Sub |
-        #!/bin/bash -xe
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
 
-        # Log everything to /tmp/userdata.log
-        exec > /tmp/userdata.log 2>&1
+          # Log everything to /tmp/userdata.log
+          exec > /tmp/userdata.log 2>&1
 
-        echo "Updating all packages..."
-        yum -y update
+          echo "Updating all packages..."
+          yum -y update
 
-        echo "Installing CloudFormation helper scripts..."
-        yum install -y aws-cfn-bootstrap
+          echo "Installing CloudFormation helper scripts..."
+          yum install -y aws-cfn-bootstrap
 
-        echo "Initializing CloudFormation resources..."
-        /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --region ${AWS::Region} --resource Instance
+          echo "Initializing CloudFormation resources..."
+          /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --region ${AWS::Region} --resource Instance
 
-        echo "Creating install script..."
-        cat > /tmp/install_script.sh << EOF
-        #!/bin/bash -xe
+          echo "Creating install script..."
+          cat > /tmp/install_script.sh << EOF
+          #!/bin/bash -xe
 
-        # Send output to a separate log file for debugging
-        exec > /home/ec2-user/userdata.log 2>&1
+          # Send output to a separate log file for debugging
+          exec > /home/ec2-user/userdata.log 2>&1
 
-        echo "Setting up NodeJS Environment"
+          echo "Setting up NodeJS Environment"
 
-        # Install NVM
-        curl https://raw.githubusercontent.com/nvm-sh/nvm/v0.34.0/install.sh | bash
+          # Install NVM
+          curl https://raw.githubusercontent.com/nvm-sh/nvm/v0.34.0/install.sh | bash
 
-        # Load NVM environment
-        export NVM_DIR="/home/ec2-user/.nvm"
-        [ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
-        [ -s "\$NVM_DIR/bash_completion" ] && \. "\$NVM_DIR/bash_completion"
+          # Load NVM environment
+          export NVM_DIR="/home/ec2-user/.nvm"
+          [ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
+          [ -s "\$NVM_DIR/bash_completion" ] && \. "\$NVM_DIR/bash_completion"
 
-        echo "Installing Node.js"
-        nvm install v12.7.0
-        nvm alias default v12.7.0
-        nvm use v12.7.0
+          echo "Installing Node.js"
+          nvm install v12.7.0
+          nvm alias default v12.7.0
+          nvm use v12.7.0
 
-        echo "Downloading application"
-        wget https://github.com/ozcli/aws-bootstrap/archive/master.zip -O /home/ec2-user/master.zip
-        unzip /home/ec2-user/master.zip -d /home/ec2-user/
+          echo "Downloading application"
+          wget https://github.com/ozcli/aws-bootstrap/archive/master.zip -O /home/ec2-user/master.zip
+          unzip /home/ec2-user/master.zip -d /home/ec2-user/
 
-        if [ -d "/home/ec2-user/aws-bootstrap-master" ]; then
-          echo "Moving application"
-          mv /home/ec2-user/aws-bootstrap-master /home/ec2-user/app
-        else
-          echo "Error: Extracted directory not found!"
-          exit 1
-        fi
+          if [ -d "/home/ec2-user/aws-bootstrap-master" ]; then
+            echo "Moving application"
+            mv /home/ec2-user/aws-bootstrap-master /home/ec2-user/app
+          else
+            echo "Error: Extracted directory not found!"
+            exit 1
+          fi
 
-        echo "Creating log directory"
-        mkdir -p /home/ec2-user/app/logs
+          echo "Creating log directory"
+          mkdir -p /home/ec2-user/app/logs
 
-        echo "Installing dependencies and starting application"
-        cd /home/ec2-user/app
-        npm install
-        npm start
-        EOF
+          echo "Installing dependencies and starting application"
+          cd /home/ec2-user/app
+          npm install
+          npm start
+          EOF
 
-        # Ensure install script is owned by ec2-user and executable
-        chown ec2-user:ec2-user /tmp/install_script.sh
-        chmod a+x /tmp/install_script.sh
+          # Ensure install script is owned by ec2-user and executable
+          chown ec2-user:ec2-user /tmp/install_script.sh
+          chmod a+x /tmp/install_script.sh
 
-        # Run install script as ec2-user
-        su - ec2-user -c "/tmp/install_script.sh"
+          # Run install script as ec2-user
+          su - ec2-user -c "/tmp/install_script.sh"
 
-        # Signal to CloudFormation that the instance is ready
-        /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --region ${AWS::Region} --resource Instance
-
-            Fn::Base64: !Sub |
-              #!/bin/bash -xe
-
-              # Log everything to /tmp/userdata.log
-              exec > /tmp/userdata.log 2>&1
-
-              echo "Updating all packages..."
-              yum -y update
-
-              echo "Installing CloudFormation helper scripts..."
-              yum install -y aws-cfn-bootstrap
-
-              echo "Initializing CloudFormation resources..."
-              /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --region ${AWS::Region} --resource Instance
-
-              echo "Creating install script..."
-              cat > /tmp/install_script.sh << EOF
-              #!/bin/bash -xe
-
-              # Send output to a separate log file for debugging
-              exec > /home/ec2-user/userdata.log 2>&1
-
-              echo "Setting up NodeJS Environment"
-
-              # Install NVM
-              curl https://raw.githubusercontent.com/nvm-sh/nvm/v0.34.0/install.sh | bash
-
-              # Load NVM
-              export NVM_DIR="/home/ec2-user/.nvm"
-              [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-              [ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"
-
-              echo "Installing Node.js"
-              nvm install v12.7.0
-              nvm alias default v12.7.0
-              nvm use v12.7.0
-
-              echo "Downloading application"
-              wget https://github.com/ozcli/aws-bootstrap/archive/master.zip -O /home/ec2-user/master.zip
-              unzip /home/ec2-user/master.zip -d /home/ec2-user/
-
-              if [ -d "/home/ec2-user/aws-bootstrap-master" ]; then
-                echo "Moving application"
-                mv /home/ec2-user/aws-bootstrap-master /home/ec2-user/app
-              else
-                echo "Error: Extracted directory not found!"
-                exit 1
-              fi
-
-              echo "Creating log directory"
-              mkdir -p /home/ec2-user/app/logs
-
-              echo "Installing dependencies and starting application"
-              cd /home/ec2-user/app
-              npm install
-              npm start
-              EOF
-
-              # Ensure install script is owned by ec2-user and executable
-              chown ec2-user:ec2-user /tmp/install_script.sh
-              chmod a+x /tmp/install_script.sh
-
-              # Run install script as ec2-user
-              su - ec2-user -c "/tmp/install_script.sh"
-
-              # Signal to CloudFormation that the instance is ready
-              /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --region ${AWS::Region} --resource Instance
+          # Signal to CloudFormation that the instance is ready
+          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --region ${AWS::Region} --resource Instance
 
 Outputs:
   InstanceEndpoint:
