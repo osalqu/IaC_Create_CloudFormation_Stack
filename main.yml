@@ -7,6 +7,10 @@ Parameters:
   EC2AMI:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
     Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+  GITHUB_TOKEN:
+    Type: String
+    Description: "GitHub Access Token for cloning the repository"
+
 
 Resources:
 
@@ -44,15 +48,7 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/CloudWatchFullAccess
-      Policies:
-        - PolicyName: AllowParameterStoreAccess
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ssm:GetParameter
-                Resource: "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/github/token"
+        - arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess  # Add this to grant access to SSM Parameter Store
       Tags:
         - Key: Name
           Value: !Ref AWS::StackName
@@ -98,6 +94,12 @@ Resources:
           echo "Installing CloudFormation helper scripts..."
           yum install -y aws-cfn-bootstrap
 
+          echo "Installing AWS CLI..."
+          yum install -y aws-cli
+
+          # Retrieve GitHub token from SSM Parameter Store
+          GITHUB_TOKEN=$(aws ssm get-parameter --name "/github/token" --with-decryption --region ${AWS::Region} --query "Parameter.Value" --output text)
+
           echo "Initializing CloudFormation resources..."
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --region ${AWS::Region} --resource Instance
 
@@ -115,19 +117,16 @@ Resources:
 
           # Load NVM environment
           export NVM_DIR="/home/ec2-user/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && \ . "$NVM_DIR/nvm.sh"
-          [ -s "$NVM_DIR/bash_completion" ] && \ . "$NVM_DIR/bash_completion"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
 
           echo "Installing Node.js"
           nvm install v12.7.0
           nvm alias default v12.7.0
           nvm use v12.7.0
 
-          # Retrieve GitHub token from Parameter Store
-          GITHUB_TOKEN=$(aws ssm get-parameter --name "/github/token" --with-decryption --query Parameter.Value --output text --region ${AWS::Region})
-
           echo "Cloning application repository"
-          git clone https://${GITHUB_TOKEN}@github.com/osalqu/aws-bootstrap.git /home/ec2-user/app
+          git clone https://${GITHUB_TOKEN}@github.com/osalqu/IaC_Create_CloudFormation_Stack.git /home/ec2-user/app
 
           echo "Creating log directory"
           mkdir -p /home/ec2-user/app/logs
